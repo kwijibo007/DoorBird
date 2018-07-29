@@ -1,0 +1,46 @@
+<?xml version="1.0"?>
+<PluginConfig>
+	<!-- You can add a SupportURL element inside here if you want a context
+		 sensitive help link on the config UI - otherwise it will just link
+		 to the URL specified in the Info.plist. -->
+	<Field id="logLevel" type="menu" defaultValue="20">
+		<Label>Event Logging Level:</Label>
+      		<List>
+         		<Option value="10">Debugging Messages</Option>
+         		<Option value="20">Informational Messages</Option>
+         		<Option value="30">Warning Messages</Option>
+         		<Option value="40">Error Messages</Option>
+				<Option value="50">Critical Errors Only</Option>
+      		</List>
+	</Field>
+	<Field type="checkbox" id="enableAdvancedDoorbird" defaultValue="false">
+		<Label>Advanced Options:</Label>
+	</Field>
+	<Field id="portLabel1" type="label" visibleBindingId="enableAdvancedDoorbird" visibleBindingValue="true">
+		<Label>Listen on ports:</Label>
+	</Field>
+	<Field type="checkbox" id="port6524" defaultValue="true" visibleBindingId="enableAdvancedDoorbird" visibleBindingValue="true">
+		<Label>6524:</Label>
+	</Field>
+	<Field type="checkbox" id="port35344" defaultValue="true" visibleBindingId="enableAdvancedDoorbird" visibleBindingValue="true">
+		<Label>35344:</Label>
+	</Field>
+	<Field id="portLabel2" type="label" visibleBindingId="enableAdvancedDoorbird" visibleBindingValue="true" fontSize="small">
+		<Label>*Changing port settings requires a restart of the plugin for changes to take affect</Label>
+	</Field>
+	<Field id="BlankLabel1" type="label" fontColor="darkgray">
+		<Label></Label>
+	</Field>
+	<Field id="BlankLabel2" type="label" fontColor="darkgray">
+		<Label></Label>
+	</Field>
+	<Field id="BlankLabel3" type="label" fontColor="darkgray">
+		<Label></Label>
+	</Field>
+	<Field id="BlankLabel4" type="label" fontColor="darkgray">
+		<Label></Label>
+	</Field>
+	<Field id="BlankLabel5" type="label" fontColor="darkgray">
+		<Label></Label>
+	</Field>
+</PluginConfig>

@@ -1,0 +1,89 @@
+<?xml version="1.0"?>
+<Devices>
+	<Device type="sensor" id= "doorbird">
+		<Name>DoorBird</Name>
+		<ConfigUI>
+			<Field id="ip" type="textfield" defaultValue="0.0.0.0">
+				<Label>Doorbird IP Address:</Label>
+			</Field>
+			<Field id="user" type="textfield">
+				<Label>Doorbird User:</Label>
+			</Field>
+			<Field id="password" type="textfield"  secure="true">
+				<Label>User Password:</Label>
+			</Field>
+			<Field type="checkbox" id="enableAdvancedDoorbird" defaultValue="false">
+				<Label>Advanced Options:</Label>
+			</Field>
+			<Field id="keepalive" type="textfield" defaultValue="30" visibleBindingId="enableAdvancedDoorbird" visibleBindingValue="true">
+				<Label>Keep Alive Timeout:</Label>
+			</Field>
+			<Field id="BlankLabel1" type="label" fontColor="darkgray">
+				<Label></Label>
+			</Field>
+			<Field id="BlankLabel2" type="label" fontColor="darkgray">
+				<Label></Label>
+			</Field>
+			<Field id="BlankLabel3" type="label" fontColor="darkgray">
+				<Label></Label>
+			</Field>
+		</ConfigUI>
+		<States>
+			<State id="firmware" readonly="YES">
+				<ValueType>String</ValueType>
+				<TriggerLabel>Firmware</TriggerLabel>
+				<ControlPageLabel>Frimware</ControlPageLabel>
+			</State>
+			<State id="build_number" readonly="YES">
+				<ValueType>String</ValueType>
+				<TriggerLabel>Build Number</TriggerLabel>
+				<ControlPageLabel>Build Number</ControlPageLabel>
+			</State>
+			<State id="mac_address" readonly="YES">
+				<ValueType>String</ValueType>
+				<TriggerLabel>MAC Address</TriggerLabel>
+				<ControlPageLabel>Mac Address</ControlPageLabel>
+			</State>
+			<State id="model" readonly="YES">
+				<ValueType>String</ValueType>
+				<TriggerLabel>Model</TriggerLabel>
+				<ControlPageLabel>Model</ControlPageLabel>
+			</State>
+		</States>
+	</Device>
+	<Device type="sensor" id= "doorbell">
+		<Name>Door Bell</Name>
+		<ConfigUI>
+			<Field id="doorbellDeviceID" type="menu" defaultValue="Not assigned">
+				<Label>Doorbird:</Label>
+				<List class="self" filter="" method="getServerList" dynamicReload="true"/>
+			</Field>
+		</ConfigUI>
+		<States></States>
+	</Device>
+	<Device type="sensor" id= "motion">
+		<Name>Motion Sensor</Name>
+		<ConfigUI>
+		    <Field id="motionDeviceID" type="menu" method="getChartList" defaultValue="Not assigned">
+				<Label>Doorbird:</Label>
+				<List class="self" filter="" method="getServerList" dynamicReload="true"/>
+			</Field>
+			<Field type="checkbox" id="enableAdvancedMotion" defaultValue="false">
+				<Label>Advanced Options:</Label>
+			</Field>
+			<Field id="motionPause" type="textfield" defaultValue="30" visibleBindingId="enableAdvancedMotion" visibleBindingValue="true">
+				<Label>Pause between alarms:</Label>
+			</Field>
+			<Field id="BlankMotion1" type="label" fontColor="darkgray">
+				<Label></Label>
+			</Field>
+			<Field id="BlankMotion2" type="label" fontColor="darkgray">
+				<Label></Label>
+			</Field>
+			<Field id="BlankMotion3" type="label" fontColor="darkgray">
+				<Label></Label>
+			</Field>
+		</ConfigUI>
+		<States></States>
+	</Device>
+</Devices>

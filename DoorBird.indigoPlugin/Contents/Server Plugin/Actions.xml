@@ -1,0 +1,15 @@
+<?xml version="1.0"?>
+<Actions>
+	<Action id="lightOn" deviceFilter="self.doorbird">
+		<Name>Turn on the IR light</Name>
+		<CallbackMethod>turnOnLight</CallbackMethod>
+	</Action>
+	<Action id="strike1" deviceFilter="self.doorbird">
+		<Name>Energize Relay 1</Name>
+		<CallbackMethod>energizeRelay</CallbackMethod>
+	</Action>
+	<Action id="strike2" deviceFilter="self.doorbird">
+		<Name>Energize Relay 2</Name>
+		<CallbackMethod>energizeRelay</CallbackMethod>
+	</Action>
+</Actions>
