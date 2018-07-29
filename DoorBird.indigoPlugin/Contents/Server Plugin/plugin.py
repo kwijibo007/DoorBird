@@ -325,7 +325,6 @@ class Plugin(indigo.PluginBase):
 			# Query hardware module (dev) for its current status here:
 			# ** IMPLEMENT ME **
 			indigo.server.log(u"sent \"%s\" %s" % (dev.name, "status request"))
-			self.burst()
 			
 	########################################			
     class doorbird(object):
@@ -436,13 +435,13 @@ class Plugin(indigo.PluginBase):
             self.logger.debug("doorbird.motion_event() called")
         
             if self.motionDeviceID == None:
-                self.logger.debug(indigo.devices[self.indigoID].name + ": Motion event triggered but no Doorbird Motion device has been created")
+                self.logger.debug(indigo.devices[self.motionDeviceID].name + ": Motion event triggered but no Doorbird Motion device has been created")
             else:
             
                 dev = indigo.devices[self.motionDeviceID]
                 dev.updateStateOnServer('onOffState',True)
                 #dev.updateStateImageOnServer(indigo.kStateImageSel.MotionSensorTripped)
-                self.logger.info(indigo.devices[self.indigoID].name +  ": Motion detected")
+                self.logger.info(indigo.devices[self.motionDeviceID].name +  ": Motion detected")
                 
                 try:
                     self.motionTimer.cancel()
@@ -456,11 +455,11 @@ class Plugin(indigo.PluginBase):
             self.logger.debug("doorbird.doorbell_event() called")
         
             if self.doorbellDeviceID == None:
-                self.logger.debug(indigo.devices[self.indigoID].name + ": Doorbell event triggered but no Doorbird Doorbell device has been created")
+                self.logger.debug(indigo.devices[self.doorbellDeviceID].name + ": Doorbell event triggered but no Doorbird Doorbell device has been created")
             else:
                 dev = indigo.devices[self.doorbellDeviceID]
                 dev.updateStateOnServer('onOffState',True)
-                self.logger.info(indigo.devices[self.indigoID].name +  ": Doorbell pressed")
+                self.logger.info(indigo.devices[self.doorbellDeviceID].name +  ": Doorbell pressed")
                 
                 try:
                     self.doorbellTimer.cancel()
