@@ -547,7 +547,7 @@ class Plugin(indigo.PluginBase):
                     except:
                         pass # Just keep going as multiple packets are sent with different passwords. Some will always fail here as wrong password
                 else:
-                    self.logger.debug(indigo.devices[self.indigoID].name + ": Unknown packet identifier (" + IDENT + ")")             
+                    self.logger.debug(indigo.devices[self.indigoID].name + ": Unknown packet identifier (" + str(IDENT) + ")")             
             else:
                 # This is a keep alive packet. Extract the time and update keepAlive variable
                 strTime = data.split(":")[2]
