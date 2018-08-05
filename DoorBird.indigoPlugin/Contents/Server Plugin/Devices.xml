@@ -12,11 +12,22 @@
 			<Field id="password" type="textfield"  secure="true">
 				<Label>User Password:</Label>
 			</Field>
+			<Field id="stateBinding" type="menu" defaultValue="doorbird">
+				<Label>State Binding:</Label>
+      			<List>
+         			<Option value="doorbird">Doorbird Status</Option>
+         			<Option value="doorbell">Doorbell</Option>
+         			<Option value="motion">Motion</Option>
+      			</List>
+			</Field>
 			<Field type="checkbox" id="enableAdvancedDoorbird" defaultValue="false">
 				<Label>Advanced Options:</Label>
 			</Field>
 			<Field id="keepalive" type="textfield" defaultValue="30" visibleBindingId="enableAdvancedDoorbird" visibleBindingValue="true">
 				<Label>Keep Alive Timeout:</Label>
+			</Field>
+			<Field id="motionPause" type="textfield" defaultValue="30" visibleBindingId="enableAdvancedDoorbird" visibleBindingValue="true">
+				<Label>Pause between alarms:</Label>
 			</Field>
 			<Field id="BlankLabel1" type="label" fontColor="darkgray">
 				<Label></Label>
@@ -27,24 +38,72 @@
 			<Field id="BlankLabel3" type="label" fontColor="darkgray">
 				<Label></Label>
 			</Field>
+			<Field id="BlankLabel4" type="label" fontColor="darkgray">
+				<Label></Label>
+			</Field>
 		</ConfigUI>
 		<States>
-			<State id="firmware" readonly="YES">
+			<State id="doorbirdLastUpdate" readonly="YES">
+				<ValueType>String</ValueType>
+				<TriggerLabel>Device Last Update</TriggerLabel>
+				<ControlPageLabel>Device Last Update</ControlPageLabel>
+			</State>
+			<State id="doorbirdOnOffState" readonly="YES">
+				<ValueType>
+            		<List>
+                		<Option value="off">On</Option>
+                		<Option value="on">Off</Option>
+            		</List>
+            	</ValueType>
+            	<TriggerLabel>Doorbird On/Off State</TriggerLabel>
+				<ControlPageLabel>Doorbird On/Off State</ControlPageLabel>
+            </State>
+            <State id="motionLastUpdate" readonly="YES">
+				<ValueType>String</ValueType>
+				<TriggerLabel>Motion Last Update</TriggerLabel>
+				<ControlPageLabel>Motion Last Update</ControlPageLabel>
+			</State>
+			<State id="motionOnOffState" readonly="YES">
+				<ValueType>
+            		<List>
+                		<Option value="off">On</Option>
+                		<Option value="on">Off</Option>
+            		</List>
+            	</ValueType>
+            	<TriggerLabel>Motion On/Off State</TriggerLabel>
+				<ControlPageLabel>Motion On/Off State</ControlPageLabel>
+            </State>
+            <State id="doorbellLastUpdate" readonly="YES">
+				<ValueType>String</ValueType>
+				<TriggerLabel>Doorbell Last Update</TriggerLabel>
+				<ControlPageLabel>Doorbell Last Update</ControlPageLabel>
+			</State>
+            <State id="doorbellOnOffState" readonly="YES">
+				<ValueType>
+            		<List>
+                		<Option value="off">On</Option>
+                		<Option value="on">Off</Option>
+            		</List>
+            	</ValueType>
+            	<TriggerLabel>Doorbell On/Off State</TriggerLabel>
+				<ControlPageLabel>Doorbell On/Off State</ControlPageLabel>
+            </State>			
+			<State id="doorbird_firmware" readonly="YES">
 				<ValueType>String</ValueType>
 				<TriggerLabel>Firmware</TriggerLabel>
 				<ControlPageLabel>Frimware</ControlPageLabel>
 			</State>
-			<State id="build_number" readonly="YES">
+			<State id="doorbird_build_number" readonly="YES">
 				<ValueType>String</ValueType>
 				<TriggerLabel>Build Number</TriggerLabel>
 				<ControlPageLabel>Build Number</ControlPageLabel>
 			</State>
-			<State id="mac_address" readonly="YES">
+			<State id="doorbird_mac_address" readonly="YES">
 				<ValueType>String</ValueType>
 				<TriggerLabel>MAC Address</TriggerLabel>
 				<ControlPageLabel>Mac Address</ControlPageLabel>
 			</State>
-			<State id="model" readonly="YES">
+			<State id="doorbird_model" readonly="YES">
 				<ValueType>String</ValueType>
 				<TriggerLabel>Model</TriggerLabel>
 				<ControlPageLabel>Model</ControlPageLabel>
@@ -52,7 +111,7 @@
 		</States>
 	</Device>
 	<Device type="sensor" id= "doorbell">
-		<Name>Door Bell</Name>
+		<Name>Doorbell</Name>
 		<ConfigUI>
 			<Field id="doorbellDeviceID" type="menu" defaultValue="Not assigned">
 				<Label>Doorbird:</Label>
@@ -67,21 +126,6 @@
 		    <Field id="motionDeviceID" type="menu" method="getChartList" defaultValue="Not assigned">
 				<Label>Doorbird:</Label>
 				<List class="self" filter="" method="getServerList" dynamicReload="true"/>
-			</Field>
-			<Field type="checkbox" id="enableAdvancedMotion" defaultValue="false">
-				<Label>Advanced Options:</Label>
-			</Field>
-			<Field id="motionPause" type="textfield" defaultValue="30" visibleBindingId="enableAdvancedMotion" visibleBindingValue="true">
-				<Label>Pause between alarms:</Label>
-			</Field>
-			<Field id="BlankMotion1" type="label" fontColor="darkgray">
-				<Label></Label>
-			</Field>
-			<Field id="BlankMotion2" type="label" fontColor="darkgray">
-				<Label></Label>
-			</Field>
-			<Field id="BlankMotion3" type="label" fontColor="darkgray">
-				<Label></Label>
 			</Field>
 		</ConfigUI>
 		<States></States>

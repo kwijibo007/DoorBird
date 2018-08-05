@@ -13,6 +13,7 @@ import doorbirdpy
 import time
 import thread
 import threading
+import re
 
 
 
@@ -38,41 +39,59 @@ class Plugin(indigo.PluginBase):
         
     ########################################
     def startup(self):
+        self.logger.debug(u"Startup Called")
+     
+    
+    ########################################
+    def deviceStartComm(self, dev):
+        self.logger.debug(u"deviceStartComm Called")
+        dev.stateListOrDisplayStateIdChanged()
         
-        doorbird = dict()
-        motion = dict()
-        doorbell = dict()
+        
+        #Turn all devices off at startup
+        dev.updateStateOnServer('onOffState',False)
         
         
-        for dev in indigo.devices.iter("self"):
+        # Build Doorbird objects and turn all sates to "Off"
+        if dev.deviceTypeId == "doorbird":       
+        
+            if dev.id not in Doorbird.instancesID:
             
-            if dev.deviceTypeId == "doorbird":
-                doorbird[dev.id] = dev
-            elif dev.deviceTypeId == "motion":
-                motion[dev.id] = dev
-                dev.updateStateOnServer('onOffState',False)
-            elif dev.deviceTypeId == "doorbell":
-                doorbell[dev.id] = dev
-                dev.updateStateOnServer('onOffState',False)
-            else:
-                pass
+                id = dev.id
+                ip = dev.pluginProps["ip"]
+                user = dev.pluginProps["user"]
+                password = dev.pluginProps["password"]
                 
-        for key, dev in doorbird.iteritems():   
-            id = dev.id
-            ip = dev.pluginProps["ip"]
-            user = dev.pluginProps["user"]
-            password = dev.pluginProps["password"]
+                motionID = None
+                doorbellID = None
+                for xDev in indigo.devices.iter("self"):
+                    if xDev.deviceTypeId == "motion":
+                        if xDev.pluginProps["motionDeviceID"] == str(id):
+                            motionID = xDev.id
+                    if xDev.deviceTypeId == "doorbell":
+                        if xDev.pluginProps["doorbellDeviceID"] == str(id):
+                            doorbellID = xDev.id
+                          
+                db = Doorbird(id, ip, user, password, motionID, doorbellID)
+                
+                stateBinding = dev.pluginProps["stateBinding"]            
+                db.primary_device_state_update(stateBinding,False)
+                
+                dev.updateStateOnServer('doorbirdOnOffState',"off")
+                dev.updateStateOnServer('motionOnOffState',"off")
+                dev.updateStateOnServer('doorbellOnOffState',"off")
+                
             
-            motionID = None
-            for key, motionDev in motion.iteritems():
-                if motionDev.pluginProps["motionDeviceID"] == str(id):
-                    motionID = motionDev.id
-            doorbellID = None
-            for key, doorbellDev in doorbell.iteritems():
-                if doorbellDev.pluginProps["doorbellDeviceID"] == str(id):
-                    doorbellID = doorbellDev.id
-                      
-            self.doorbird(id, ip, user, password, self.logger, motionID, doorbellID)
+            stateBinding = dev.pluginProps["stateBinding"]
+            currentState = dev.states[stateBinding + "OnOffState"]
+        
+            state = False
+            if currentState == "on":
+                state = True
+            
+            Doorbird.instancesID[dev.id].primary_device_state_update(stateBinding,state)
+            
+        return
     
     
     ########################################
@@ -110,8 +129,8 @@ class Plugin(indigo.PluginBase):
                     data, addr = sock.recvfrom(1024)
                     srcIP = addr[0]
                     
-                    if srcIP in self.doorbird.instances:
-                        self.doorbird.instances[srcIP].udp_message(data)
+                    if srcIP in Doorbird.instances:
+                        Doorbird.instances[srcIP].udp_message(data)
                 
                 self.sleep(0.1)
                 
@@ -124,6 +143,7 @@ class Plugin(indigo.PluginBase):
     
     ########################################
     def validateDeviceConfigUi(self, valuesDict, typeId, devId):
+        self.debugLog("validateDeviceConfigUi() called")
         
         errorDict = indigo.Dict()
         
@@ -131,19 +151,25 @@ class Plugin(indigo.PluginBase):
         
             # Check IP is not already in use by another doorbird
             ip = valuesDict["ip"]
-            if ip in self.doorbird.instances:
-                assignedID = self.doorbird.instances[ip].indigoID
+            if ip in Doorbird.instances:
+                assignedID = Doorbird.instances[ip].indigoID
                 
                 if assignedID != devId:
                     name = indigo.devices[assignedID].name
                     errorDict["ip"] = "IP address is already assigned to device: " + name
 
+            isIP=re.match(r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$",ip)
+            if not isIP:    
+                errorDict["ip"] = "Not a valid ip address"
+            
+            
             # Check that the keep alive value is a valid number
             if valuesDict["keepalive"].isdigit() == False:
                 errorDict["keepalive"] = "Keep Alive Timeout must be a number"
-        if typeId == "motion":
+            
             if valuesDict["motionPause"].isdigit() == False:
                 errorDict["motionPause"] = "Pause between alarms must be a number"
+            
 
         if len(errorDict) > 0:
             return (False, valuesDict, errorDict)
@@ -155,6 +181,7 @@ class Plugin(indigo.PluginBase):
     ########################################    
     def closedDeviceConfigUi(self, valuesDict, userCancelled, typeId, devId):
         self.debugLog("closedDeviceConfigUI() called")
+        
         if userCancelled:
             pass
         else:
@@ -165,42 +192,46 @@ class Plugin(indigo.PluginBase):
                 user = valuesDict["user"]
                 password = valuesDict["password"]
             
-                if devId in self.doorbird.instancesID:
+                if devId in Doorbird.instancesID:
                 
-                    self.doorbird.instancesID[devId].update_credintials(user,password)
+                    Doorbird.instancesID[devId].update_credintials(user,password)
               
-                    if ip not in self.doorbird.instances:
+                    if ip not in Doorbird.instances:
                         # Remove old IP instance
-                        oldIP = self.doorbird.instancesID[devId].ip
-                        self.doorbird.instances.pop(oldIP, None)
+                        oldIP = Doorbird.instancesID[devId].ip
+                        Doorbird.instances.pop(oldIP, None)
                         
                         # Add new IP instance
-                        self.doorbird.instancesID[devId].ip = ip
-                        self.doorbird.instances[ip] = self.doorbird.instancesID[devId]
+                        Doorbird.instancesID[devId].ip = ip
+                        Doorbird.instances[ip] = Doorbird.instancesID[devId]
               
                 else:
-                    self.doorbird(devId, ip, user, password, self.logger, None, None)
+                    self.debugLog("New Doorbird device")
+                    Dorbird(devId, ip, user, password, None, None)
+                    
+                
             if typeId == "motion":
                 doorbirdID = valuesDict["motionDeviceID"]
                 if doorbirdID != "None":
-                    self.doorbird.instancesID[int(doorbirdID)].motionDeviceID = devId
+                    Doorbird.instancesID[int(doorbirdID)].motionDeviceID = devId
                 else:
                     #Check if this device was assigned to a Doorbird. If so unassign it.
                     for dev in indigo.devices.iter("self"):
                         if dev.deviceTypeId == "doorbird":
-                            if self.doorbird.instancesID[dev.id].motionDeviceID == devId:
-                                self.doorbird.instancesID[dev.id].motionDeviceID = None
+                            if Doorbird.instancesID[dev.id].motionDeviceID == devId:
+                                Doorbird.instancesID[dev.id].motionDeviceID = None
             if typeId == "doorbell":
                 doorbirdID = valuesDict["doorbellDeviceID"]
                 if doorbirdID != "None":
-                    self.doorbird.instancesID[int(doorbirdID)].doorbellDeviceID = devId
+                    Doorbird.instancesID[int(doorbirdID)].doorbellDeviceID = devId
                 else:
                     #Check if this device was assigned to a Doorbird. If so unassign it.
                     for dev in indigo.devices.iter("self"):
                         if dev.deviceTypeId == "doorbird":
-                            if self.doorbird.instancesID[dev.id].doorbellDeviceID == devId:
-                                self.doorbird.instancesID[dev.id].doorbellDeviceID = None
-            
+                            if Doorbird.instancesID[dev.id].doorbellDeviceID == devId:
+                                Doorbird.instancesID[dev.id].doorbellDeviceID = None
+
+                    
     
     ########################################
     def deviceCreated(self, dev):
@@ -219,8 +250,8 @@ class Plugin(indigo.PluginBase):
             # Try as this fails if the device was created and config was cancelled... the ip instance never gets created
             try:
                 ip = dev.pluginProps["ip"]
-                self.doorbird.instances.pop(ip, None)
-                self.doorbird.instancesID.pop(dev.id, None)
+                Doorbird.instances.pop(ip, None)
+                Doorbird.instancesID.pop(dev.id, None)
             except:
                 pass
                 
@@ -229,15 +260,15 @@ class Plugin(indigo.PluginBase):
         if dev.deviceTypeId == "motion":
             for dev2 in indigo.devices.iter("self"):
                 if dev2.deviceTypeId == "doorbird":
-                    if self.doorbird.instancesID[dev2.id].motionDeviceID == dev.id:
-                        self.doorbird.instancesID[dev2.id].motionDeviceID = None
+                    if Doorbird.instancesID[dev2.id].motionDeviceID == dev.id:
+                        Doorbird.instancesID[dev2.id].motionDeviceID = None
                         
         # Unassign doorbell device from Dorrbird
         if dev.deviceTypeId == "doorbell":
             for dev2 in indigo.devices.iter("self"):
                 if dev2.deviceTypeId == "doorbird":
-                    if self.doorbird.instancesID[dev2.id].doorbellDeviceID == dev.id:
-                        self.doorbird.instancesID[dev2.id].doorbellDeviceID = None
+                    if Doorbird.instancesID[dev2.id].doorbellDeviceID == dev.id:
+                        Doorbird.instancesID[dev2.id].doorbellDeviceID = None
                   
     
     ########################################
@@ -263,30 +294,26 @@ class Plugin(indigo.PluginBase):
     def getServerList(self, filter="", valuesDict=None, typeId="", devId=None):
         self.debugLog("getServerList called")
         
-        
         return_list = [("None","Not assigned")]
-        
-        
         
         for dev in indigo.devices.iter("self"):  
             if dev.deviceTypeId == "doorbird":
                 if typeId == "motion":
                     # Only add Doorbirds that have no motion device assigned 
-                    if self.doorbird.instancesID[dev.id].motionDeviceID == None or self.doorbird.instancesID[dev.id].motionDeviceID == int(devId):
+                    if Doorbird.instancesID[dev.id].motionDeviceID == None or Doorbird.instancesID[dev.id].motionDeviceID == int(devId):
                         return_list.append((str(dev.id),dev.name))
                 if typeId == "doorbell":
                     # Only add Doorbirds that have no motion device assigned 
-                    if self.doorbird.instancesID[dev.id].doorbellDeviceID == None or self.doorbird.instancesID[dev.id].doorbellDeviceID == int(devId):
+                    if Doorbird.instancesID[dev.id].doorbellDeviceID == None or Doorbird.instancesID[dev.id].doorbellDeviceID == int(devId):
                         return_list.append((str(dev.id),dev.name))
-               
-        
+                 
         return return_list
 
 
 
     def turnOnLight(self, action, dev):
         self.logger.debug("turnOnLight called")
-        self.doorbird.instancesID[dev.id].turn_light_on()
+        Doorbird.instancesID[dev.id].turn_light_on()
         
     def energizeRelay(self, action, dev):
         self.logger.debug("energizeRelay called")
@@ -295,7 +322,7 @@ class Plugin(indigo.PluginBase):
         else:
             relay = 2
         
-        self.doorbird.instancesID[dev.id].energize_relay(relay)
+        Doorbird.instancesID[dev.id].energize_relay(relay)
         
 
  
@@ -326,257 +353,351 @@ class Plugin(indigo.PluginBase):
 			# ** IMPLEMENT ME **
 			indigo.server.log(u"sent \"%s\" %s" % (dev.name, "status request"))
 			
-	########################################			
-    class doorbird(object):
-        instances = dict()
-        instancesID = dict()
+			if dev.deviceTypeId == "doorbird":
+			    Doorbird.instancesID[dev.id].update_status_fields(True)
+			else:
+			    indigo.server.log(u"sent \"%s\" %s" % (dev.name, ": This device does not support status requests"))
+			
+			
+			
+########################################			
+class Doorbird(object):
+    instances = dict()
+    instancesID = dict()
 
-        def __init__(self, indigoID=None, ip=None, user=None, password=None, logger=None, motionDeviceID=None, doorbellDeviceID=None):
-            self.logger = logger
-            self.indigoID = indigoID
-            self.ip = ip
-            self.user = None
-            self.password = None
-            self.doorbird = None
-            self.update_credintials(user,password)
-              
-            self.instances[self.ip] = self
-            self.instancesID[self.indigoID] = self
-            
-            self.keepAlive = int((datetime.datetime.now() - datetime.timedelta(seconds = 31)).strftime('%s')) #now minus 31 seconds
-            self.motionDeviceID = motionDeviceID
-            self.doorbellDeviceID = doorbellDeviceID
-            
-            self.motionTimer = None
-            self.doorbellTimer = None
-            
-            self.lastEvent = datetime.datetime.now()
-            
-            
-            
-            # Start monitoring if the doorbirds is sending keep alive packets
-            thread.start_new_thread(self.keep_alive_monitor, ())
+    def __init__(self, indigoID=None, ip=None, user=None, password=None, motionDeviceID=None, doorbellDeviceID=None):
+        self.logger = logging.getLogger("Plugin")
+        self.indigoID = indigoID
+        self.ip = ip
+        self.user = None
+        self.password = None
+        self.doorbirdPy = None
+        self.update_credintials(user,password)
+          
+        self.instances[self.ip] = self
+        self.instancesID[self.indigoID] = self
+        
+        self.keepAlive = int((datetime.datetime.now() - datetime.timedelta(seconds = 31)).strftime('%s')) #now minus 31 seconds
+        self.motionDeviceID = motionDeviceID
+        self.doorbellDeviceID = doorbellDeviceID
+        
+        self.motionTimer = None
+        self.doorbellTimer = None
+        
+        self.lastEvent = datetime.datetime.now()
+        
+        # Start monitoring if the doorbird is sending keep alive packets
+        thread.start_new_thread(self.keep_alive_monitor, ())
 
+    
+    def update_credintials(self, usr ,pwd):
+        self.logger.debug("Doorbird.update_credintials() called")
+        self.user = str(usr)
+        self.password = str(pwd)
+        # Create a doorbirdpy object
+        self.doorbirdPy = doorbirdpy.DoorBird(self.ip,self.user,self.password)
         
-        def update_credintials(self, usr ,pwd):
-            self.logger.debug("doorbird.update_credintials() called")
-            self.user = str(usr)
-            self.password = str(pwd)
-            # Create a doorbirdpy object
-            self.doorbird = doorbirdpy.DoorBird(self.ip,self.user,self.password)
-            
-            self.check_status()
-            
-        def check_status(self):
-            response = self.doorbird.ready()
+        self.check_status()
+        
+    def check_status(self):
+        self.logger.debug("Doorbird.check_status() called")
+        response = self.doorbirdPy.ready()
 
-            if response[0] == False and response[1] == 401:
-                self.logger.error(indigo.devices[self.indigoID].name +  ": Invalid credintials. Check username and password")
-                status = False
-            elif response[0] == True:
-                status = True
-            else:
-                self.logger.error(indigo.devices[self.indigoID].name +  ": Unable to connect to Doorbird. HTML status code: " + str(response[1]))
-                status = False
-                
-            return status
-        
-        # Monitors the last keep alive packet time and sets the sensor to off if more than 30 seconds has passed    
-        def keep_alive_monitor(self):            
-            while True:      
-                try:
-                    dev = indigo.devices[self.indigoID]
-                    now = time.time()
-                    diff = now - self.keepAlive
-                    
-                    alive = False
-                    
-                    # It seems that this object can be created before the Indigo devices property is available
-                    try:
-                        deviceKeepAlive = int(dev.pluginProps["keepalive"])
-                    except:
-                        deviceKeepAlive = 30
-                    
-                    if diff < deviceKeepAlive:
-                        alive = True
-                        
-                    if dev.states["onOffState"] != alive:
-                        
-                        if alive == True:
-                        
-                            dev.updateStateOnServer('onOffState',True)
-                            self.logger.info(indigo.devices[self.indigoID].name +  ": Online")
-                        
-                            try:    
-                                info = self.doorbird.info()
-                                
-                                keyValueList = [
-                                    {'key': 'firmware', 'value': info['FIRMWARE']},
-                                    {'key': 'build_number', 'value': info['BUILD_NUMBER']},
-                                    {'key': 'mac_address', 'value': info['WIFI_MAC_ADDR']},
-                                    {'key': 'model', 'value': info['DEVICE-TYPE']}
-                                ]
-                                dev.updateStatesOnServer(keyValueList)
-                            except:
-                                self.logger.error(indigo.devices[self.indigoID].name +  ": Unable to update Doorbird details")
-                                
-                        else:
-                            dev.updateStateOnServer('onOffState',False)
-                            self.logger.info(indigo.devices[self.indigoID].name +  ": Offline")
-                                                               
-                except:
-                    self.logger.error(indigo.devices[self.indigoID].name +  ": Unable to read keep alive time")
-                
-                time.sleep(1)
-        
-        
-        
-        def motion_event(self):
-            self.logger.debug("doorbird.motion_event() called")
-        
-            if self.motionDeviceID == None:
-                self.logger.debug(indigo.devices[self.motionDeviceID].name + ": Motion event triggered but no Doorbird Motion device has been created")
-            else:
+        if response[0] == False and response[1] == 401:
+            self.logger.error(indigo.devices[self.indigoID].name +  ": Invalid credintials. Check username and password")
+            status = False
+        elif response[0] == True:
+            status = True
+        else:
+            self.logger.error(indigo.devices[self.indigoID].name +  ": Unable to connect to Doorbird. HTML status code: " + str(response[1]))
+            status = False
             
-                dev = indigo.devices[self.motionDeviceID]
-                dev.updateStateOnServer('onOffState',True)
-                #dev.updateStateImageOnServer(indigo.kStateImageSel.MotionSensorTripped)
-                self.logger.info(indigo.devices[self.motionDeviceID].name +  ": Motion detected")
-                
-                try:
-                    self.motionTimer.cancel()
-                except:
-                    pass
-                
-                self.motionTimer = threading.Timer(int(dev.pluginProps["motionPause"]),dev.updateStateOnServer,['onOffState',False])
-                self.motionTimer.start()
-                
-        def doorbell_event(self):
-            self.logger.debug("doorbird.doorbell_event() called")
+        return status
         
-            if self.doorbellDeviceID == None:
-                self.logger.debug(indigo.devices[self.doorbellDeviceID].name + ": Doorbell event triggered but no Doorbird Doorbell device has been created")
-            else:
-                dev = indigo.devices[self.doorbellDeviceID]
-                dev.updateStateOnServer('onOffState',True)
-                self.logger.info(indigo.devices[self.doorbellDeviceID].name +  ": Doorbell pressed")
+    def update_status_fields(self,printLog):
+        self.logger.debug("Dorbird.update_status_fields() called")
+        
+        try:      
+            if self.check_status() == True:
+                info = self.doorbirdPy.info()
                 
-                try:
-                    self.doorbellTimer.cancel()
-                except:
-                    pass
+                keyValueList = [
+                    {'key': 'doorbird_firmware', 'value': info['FIRMWARE']},
+                    {'key': 'doorbird_build_number', 'value': info['BUILD_NUMBER']},
+                    {'key': 'doorbird_mac_address', 'value': info['WIFI_MAC_ADDR']},
+                    {'key': 'doorbird_model', 'value': info['DEVICE-TYPE']}
+                ]    
                 
-                self.doorbellTimer = threading.Timer(1,dev.updateStateOnServer,['onOffState',False])
-                self.doorbellTimer.start()
+                dev = indigo.devices[self.indigoID]
+                
+                if printLog == True:
+                    self.logger.info(dev.name + ": Connected")
+                    self.logger.info("    Firmware    : " + info['FIRMWARE'])
+                    self.logger.info("    Build Number: " + info['BUILD_NUMBER'])
+                    self.logger.info("    MAC Address : " + info['WIFI_MAC_ADDR'])
+                    self.logger.info("    Model       : " + info['DEVICE-TYPE'])
+                
+                dev.updateStatesOnServer(keyValueList)
+        except:
+            self.logger.error(indigo.devices[self.indigoID].name +  ": Unable to update Doorbird details")
         
     
-        def turn_light_on(self):
-            self.logger.debug("doorbird.turn_light_on called")
-            
-            if self.check_status() == True:
-            
-                try:
-                    response = self.doorbird.turn_light_on()
-                    self.logger.info(indigo.devices[self.indigoID].name +  ": Turn IR Light on command sent")
-                except:
-                    self.logger.error(indigo.devices[self.indigoID].name +  ": Unable to turn on IR light")
-            else:
-                self.logger.error(indigo.devices[self.indigoID].name +  ": Turn IR Light on command not sent")
+    # Monitors the last keep alive packet time and sets the sensor to off if more than 30 seconds has passed    
+    def keep_alive_monitor(self):
+        while True:    
+            try:
+                dev = indigo.devices[self.indigoID]
+                now = time.time()
+                diff = now - self.keepAlive
+
+                deviceKeepAlive = int(dev.pluginProps["keepalive"])
                 
-        def energize_relay(self,relayID):
-        
-            if self.check_status() == True:
-                self.logger.debug("doorbird.energize_relay called")
-                try:
-                    response = self.doorbird.energize_relay(relayID)
-                    self.logger.info(indigo.devices[self.indigoID].name +  ": Relay " + str(relayID) + " energize command sent")
-                except:
-                    self.logger.error(indigo.devices[self.indigoID].name +  ": Unable energize relay " + str(relayID))
-            else:
-                self.logger.error(indigo.devices[self.indigoID].name +  ": Relay " + str(relayID) + " energize command not sent")
-        
-        
-        def udp_message(self, data):
-      
-            pw = self.password[:5]   
-                            
-        
-            if ":" + self.user[:-4] + ":" not in data:
-                packet = list() 
-                for i in data:
-                    packet.append(hex(ord(i)))
+                alive = False
+                if diff < deviceKeepAlive:
+                    alive = True
                 
-                IDENT = self.hex_convert(packet[0:3],"i")
-                
-                # 14593470 is the first 3 bytes (0xDE 0xAD 0xBE) which identifies this type of packet
-                if IDENT == 14593470:
-                   
-                
-                    OPSLIMIT = self.hex_convert(packet[4:8],"i")
-                    MEMLIMIT = self.hex_convert(packet[8:12],"i")
-                    SALT = self.hex_convert(packet[12:28],"s")
-                    NONCE = self.hex_convert(packet[28:36],"s")
-                    CIPHERTEXT = self.hex_convert(packet[36:70],"s")
-                   
-                    key = pysodium.crypto_pwhash(pysodium.crypto_auth_KEYBYTES, pw, SALT, OPSLIMIT, MEMLIMIT, pysodium.crypto_pwhash_ALG_ARGON2I13)
-                        
-                    try:
-                        
-                        output = pysodium.crypto_aead_chacha20poly1305_decrypt(CIPHERTEXT, None, NONCE, key)
                     
-                        outputHex = list()
-                   
-                        for i in output:
-                            outputHex.append(hex(ord(i)))
+                onOffState = False
+                if dev.states["doorbirdOnOffState"] == "on":
+                    onOffState = True
+                
+                if onOffState != alive:
+                
+                    self.primary_device_state_update("doorbird",alive)
+                    
+                    if alive == True:
+                    
+                        dev.updateStateOnServer('doorbirdOnOffState',"on")
+                        dev.updateStateOnServer('doorbirdLastUpdate',datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
                         
-                        INTERCOM_ID = self.hex_convert(outputHex[0:6],"s")
-                        EVENT = self.hex_convert(outputHex[6:14],"s")
-                        TIMESTAMP = self.hex_convert(outputHex[14:18],"i")                                
-                        #strTimeStamp = datetime.datetime.fromtimestamp(int(TIMESTAMP)).strftime('%Y-%m-%d %H:%M:%S')
-
-                        
-                        if TIMESTAMP != self.lastEvent: #Multiple duplicate UDP packets sent by Doorbird. This removes the duplicates
-                            if str(EVENT).rstrip() == "motion":
-                                self.motion_event()
-                            elif str(EVENT).rstrip() == "1":
-                                self.doorbell_event()
-                            else:
-                                self.logger.debug(indigo.devices[self.indigoID].name + ": Unknown event (" + EVENT + ")") 
-                                
-                            self.lastEvent = TIMESTAMP
-                    except:
-                        pass # Just keep going as multiple packets are sent with different passwords. Some will always fail here as wrong password
+                        self.logger.info(indigo.devices[self.indigoID].name +  ": Online")
+                    
+                        self.update_status_fields(False)
+                            
+                    else:
+                        dev.updateStateOnServer('doorbirdOnOffState',"off")
+                        dev.updateStateOnServer('doorbirdLastUpdate',datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+                        self.logger.info(indigo.devices[self.indigoID].name +  ": Offline")
+                                                           
+            except:
+                self.logger.error(indigo.devices[self.indigoID].name +  ": Unable to read keep alive time")
+            
+            time.sleep(1)
+    
+    
+    
+    def motion_event(self):
+        self.logger.debug("Doorbird.motion_event() called")
+    
+        priDev = indigo.devices[self.indigoID]
+        priDev.updateStateOnServer('motionOnOffState',"on")
+        priDev.updateStateOnServer('motionLastUpdate',datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+        self.primary_device_state_update("motion",True)
+        
+        
+        if self.motionDeviceID == None:
+            self.logger.info(priDev.name +  ": Motion On")
+        else:
+        
+            dev = indigo.devices[self.motionDeviceID]
+            dev.updateStateOnServer('onOffState',True)
+            self.logger.info(indigo.devices[self.motionDeviceID].name +  ": On")
+            
+        try:
+            self.motionTimer.cancel()
+        except:
+            pass
+            
+        self.motionTimer = threading.Timer(int(priDev.pluginProps["motionPause"]),self.motion_off)
+        self.motionTimer.start()
+            
+            
+    def motion_off(self):
+        self.logger.debug("Doorbird.motion_off() called")
+        
+        priDev = indigo.devices[self.indigoID]
+        priDev.updateStateOnServer('motionOnOffState',"off")
+        priDev.updateStateOnServer('motionLastUpdate',datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+        self.primary_device_state_update("motion",False)
+        
+        if self.motionDeviceID == None:
+            self.logger.info(priDev.name +  ": Motion Off")
+        else:
+            dev = indigo.devices[self.motionDeviceID]
+            dev.updateStateOnServer('onOffState',False)
+            self.logger.info(indigo.devices[self.motionDeviceID].name +  ": Off")
+            
+    def doorbell_event(self):
+        self.logger.debug("Doorbird.doorbell_event() called")
+        
+        priDev = indigo.devices[self.indigoID]
+        priDev.updateStateOnServer('doorbellOnOffState',"on")
+        priDev.updateStateOnServer('doorbellLastUpdate',datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+        self.primary_device_state_update("doorbell",True)
+    
+        if self.doorbellDeviceID == None:
+            self.logger.info(priDev.name +  ": Doorbell On")
+        else:
+            dev = indigo.devices[self.doorbellDeviceID]
+            dev.updateStateOnServer('onOffState',True)
+            self.logger.info(indigo.devices[self.doorbellDeviceID].name +  ": On")
+            
+        try:
+            self.doorbellTimer.cancel()
+        except:
+            pass
+            
+        self.doorbellTimer = threading.Timer(1,self.doorbell_off)
+        self.doorbellTimer.start()
+            
+    def doorbell_off(self):
+        self.logger.debug("Doorbird.doorbell_off() called")
+        
+        priDev = indigo.devices[self.indigoID]
+        priDev.updateStateOnServer('doorbellOnOffState',"off")
+        self.primary_device_state_update("doorbell",False)
+        
+        if self.doorbellDeviceID == None:
+            self.logger.info(priDev.name +  ": Doorbell Off")
+        else:
+            dev = indigo.devices[self.doorbellDeviceID]
+            dev.updateStateOnServer('onOffState',False)
+            self.logger.info(indigo.devices[self.doorbellDeviceID].name +  ": Off")
+            
+    def primary_device_state_update(self,deviceType,state):
+        self.logger.debug("Doorbird.primary_device_state_update() called")
+        
+        dev = indigo.devices[self.indigoID]
+        stateBinding = dev.pluginProps["stateBinding"]
+       
+        if deviceType == stateBinding:
+            
+            if deviceType == "motion":
+                if state == True:
+                    dev.updateStateImageOnServer(indigo.kStateImageSel.MotionSensorTripped)
                 else:
-                    self.logger.debug(indigo.devices[self.indigoID].name + ": Unknown packet identifier (" + str(IDENT) + ")")             
+                    dev.updateStateImageOnServer(indigo.kStateImageSel.MotionSensor)
             else:
-                # This is a keep alive packet. Extract the time and update keepAlive variable
-                strTime = data.split(":")[2]
+                if state == True:
+                    dev.updateStateImageOnServer(indigo.kStateImageSel.SensorOn)
+                else:
+                    dev.updateStateImageOnServer(indigo.kStateImageSel.SensorOff)
+            
+            dev.updateStateOnServer('onOffState',state)
+            
+    
+
+    def turn_light_on(self):
+        self.logger.debug("Doorbird.turn_light_on called")
+        
+        if self.check_status() == True:
+        
+            try:
+                response = self.doorbirdPy.turn_light_on()
+                self.logger.info(indigo.devices[self.indigoID].name +  ": Turn IR Light on command sent")
+            except:
+                self.logger.error(indigo.devices[self.indigoID].name +  ": Unable to turn on IR light")
+        else:
+            self.logger.error(indigo.devices[self.indigoID].name +  ": Turn IR Light on command not sent")
+            
+    def energize_relay(self,relayID):
+    
+        if self.check_status() == True:
+            self.logger.debug("Dorbird.energize_relay called")
+            try:
+                response = self.doorbirdPy.energize_relay(relayID)
+                self.logger.info(indigo.devices[self.indigoID].name +  ": Relay " + str(relayID) + " energize command sent")
+            except:
+                self.logger.error(indigo.devices[self.indigoID].name +  ": Unable energize relay " + str(relayID))
+        else:
+            self.logger.error(indigo.devices[self.indigoID].name +  ": Relay " + str(relayID) + " energize command not sent")
+    
+    
+    def udp_message(self, data):
+  
+        pw = self.password[:5]   
+                        
+    
+        if ":" + self.user[:-4] + ":" not in data:
+            packet = list() 
+            for i in data:
+                packet.append(hex(ord(i)))
+            
+            IDENT = self.hex_convert(packet[0:3],"i")
+            
+            # 14593470 is the first 3 bytes (0xDE 0xAD 0xBE) which identifies this type of packet
+            if IDENT == 14593470:
+               
+            
+                OPSLIMIT = self.hex_convert(packet[4:8],"i")
+                MEMLIMIT = self.hex_convert(packet[8:12],"i")
+                SALT = self.hex_convert(packet[12:28],"s")
+                NONCE = self.hex_convert(packet[28:36],"s")
+                CIPHERTEXT = self.hex_convert(packet[36:70],"s")
+               
+                key = pysodium.crypto_pwhash(pysodium.crypto_auth_KEYBYTES, pw, SALT, OPSLIMIT, MEMLIMIT, pysodium.crypto_pwhash_ALG_ARGON2I13)
+                    
                 try:
-                    self.keepAlive = int(strTime)
+                    
+                    output = pysodium.crypto_aead_chacha20poly1305_decrypt(CIPHERTEXT, None, NONCE, key)
+                
+                    outputHex = list()
+               
+                    for i in output:
+                        outputHex.append(hex(ord(i)))
+                    
+                    INTERCOM_ID = self.hex_convert(outputHex[0:6],"s")
+                    EVENT = self.hex_convert(outputHex[6:14],"s")
+                    TIMESTAMP = self.hex_convert(outputHex[14:18],"i")                                
+                    #strTimeStamp = datetime.datetime.fromtimestamp(int(TIMESTAMP)).strftime('%Y-%m-%d %H:%M:%S')
+
+                    
+                    if TIMESTAMP != self.lastEvent: #Multiple duplicate UDP packets sent by Doorbird. This removes the duplicates
+                        if str(EVENT).rstrip() == "motion":
+                            self.motion_event()
+                        elif str(EVENT).rstrip() == "1":
+                            self.doorbell_event()
+                        else:
+                            self.logger.debug(indigo.devices[self.indigoID].name + ": Unknown event (" + EVENT + ")") 
+                            
+                        self.lastEvent = TIMESTAMP
                 except:
-                    self.logger.error(indigo.devices[self.indigoID].name + ": Corrupt Keep Alive Packet")
-                              
-
-
-        # For converting packets back to hex
-        def hex_convert(self,subPacket,type): 
-        
-            hexString = ""
-            for x in subPacket:
+                    pass # Just keep going as multiple packets are sent with different passwords. Some will always fail here as wrong password
             
-                y = x[2:]
-                if len(y) == 1:
-                    y = "0" + y
-            
-                hexString = hexString + y
-        
-            if type == "i":
-                return int(hexString, 16)
-            elif type == "s":
-                return hexString.decode("hex")
+            #11189196 is the first 3 bytes (0xAA 0xBB 0xCC) which occurs when an IP Chime is connected to the Doorbird
+            elif IDENT == 11189196:
+                pass # For now do nothing. Maybe useful later when we work out what to do with this type of packet?
             else:
-                self.logger.error("unknown type")
-                return None
+                self.logger.debug(indigo.devices[self.indigoID].name + ": Unknown packet identifier (" + str(IDENT) + ")")             
+        else:
+            # This is a keep alive packet. Extract the time and update keepAlive variable
+            strTime = data.split(":")[2]  
+            try:
+                self.keepAlive = int(strTime)
+            except:
+                self.logger.error(indigo.devices[self.indigoID].name + ": Corrupt Keep Alive Packet")
+                          
+
+
+    # For converting packets back to hex
+    def hex_convert(self,subPacket,type): 
+    
+        hexString = ""
+        for x in subPacket:
+        
+            y = x[2:]
+            if len(y) == 1:
+                y = "0" + y
+        
+            hexString = hexString + y
+    
+        if type == "i":
+            return int(hexString, 16)
+        elif type == "s":
+            return hexString.decode("hex")
+        else:
+            self.logger.error("unknown type")
+            return None
 			
 			
 			
