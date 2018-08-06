@@ -49,12 +49,7 @@
 				<ControlPageLabel>Device Last Update</ControlPageLabel>
 			</State>
 			<State id="doorbirdOnOffState" readonly="YES">
-				<ValueType>
-            		<List>
-                		<Option value="off">On</Option>
-                		<Option value="on">Off</Option>
-            		</List>
-            	</ValueType>
+				<ValueType boolType="OnOff">Boolean</ValueType>
             	<TriggerLabel>Doorbird On/Off State</TriggerLabel>
 				<ControlPageLabel>Doorbird On/Off State</ControlPageLabel>
             </State>
@@ -64,12 +59,7 @@
 				<ControlPageLabel>Motion Last Update</ControlPageLabel>
 			</State>
 			<State id="motionOnOffState" readonly="YES">
-				<ValueType>
-            		<List>
-                		<Option value="off">On</Option>
-                		<Option value="on">Off</Option>
-            		</List>
-            	</ValueType>
+				<ValueType boolType="OnOff">Boolean</ValueType>
             	<TriggerLabel>Motion On/Off State</TriggerLabel>
 				<ControlPageLabel>Motion On/Off State</ControlPageLabel>
             </State>
@@ -79,12 +69,7 @@
 				<ControlPageLabel>Doorbell Last Update</ControlPageLabel>
 			</State>
             <State id="doorbellOnOffState" readonly="YES">
-				<ValueType>
-            		<List>
-                		<Option value="off">On</Option>
-                		<Option value="on">Off</Option>
-            		</List>
-            	</ValueType>
+				<ValueType boolType="OnOff">Boolean</ValueType>
             	<TriggerLabel>Doorbell On/Off State</TriggerLabel>
 				<ControlPageLabel>Doorbell On/Off State</ControlPageLabel>
             </State>			

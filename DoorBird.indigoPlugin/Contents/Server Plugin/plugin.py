@@ -48,10 +48,6 @@ class Plugin(indigo.PluginBase):
         dev.stateListOrDisplayStateIdChanged()
         
         
-        #Turn all devices off at startup
-        dev.updateStateOnServer('onOffState',False)
-        
-        
         # Build Doorbird objects and turn all sates to "Off"
         if dev.deviceTypeId == "doorbird":       
         
@@ -77,19 +73,18 @@ class Plugin(indigo.PluginBase):
                 stateBinding = dev.pluginProps["stateBinding"]            
                 db.primary_device_state_update(stateBinding,False)
                 
-                dev.updateStateOnServer('doorbirdOnOffState',"off")
-                dev.updateStateOnServer('motionOnOffState',"off")
-                dev.updateStateOnServer('doorbellOnOffState',"off")
+                dev.updateStateOnServer('doorbirdOnOffState',False)
+                dev.updateStateOnServer('motionOnOffState',False)
+                dev.updateStateOnServer('doorbellOnOffState',False)
                 
             
             stateBinding = dev.pluginProps["stateBinding"]
             currentState = dev.states[stateBinding + "OnOffState"]
-        
-            state = False
-            if currentState == "on":
-                state = True
             
-            Doorbird.instancesID[dev.id].primary_device_state_update(stateBinding,state)
+            Doorbird.instancesID[dev.id].primary_device_state_update(stateBinding,currentState)
+        else:
+            #Turn all devices off at startup
+            dev.updateStateOnServer('onOffState',False)
             
         return
     
@@ -455,11 +450,8 @@ class Doorbird(object):
                 alive = False
                 if diff < deviceKeepAlive:
                     alive = True
-                
                     
-                onOffState = False
-                if dev.states["doorbirdOnOffState"] == "on":
-                    onOffState = True
+                onOffState = dev.states["doorbirdOnOffState"]
                 
                 if onOffState != alive:
                 
@@ -467,7 +459,7 @@ class Doorbird(object):
                     
                     if alive == True:
                     
-                        dev.updateStateOnServer('doorbirdOnOffState',"on")
+                        dev.updateStateOnServer('doorbirdOnOffState',True)
                         dev.updateStateOnServer('doorbirdLastUpdate',datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
                         
                         self.logger.info(indigo.devices[self.indigoID].name +  ": Online")
@@ -475,7 +467,7 @@ class Doorbird(object):
                         self.update_status_fields(False)
                             
                     else:
-                        dev.updateStateOnServer('doorbirdOnOffState',"off")
+                        dev.updateStateOnServer('doorbirdOnOffState',False)
                         dev.updateStateOnServer('doorbirdLastUpdate',datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
                         self.logger.info(indigo.devices[self.indigoID].name +  ": Offline")
                                                            
@@ -490,7 +482,7 @@ class Doorbird(object):
         self.logger.debug("Doorbird.motion_event() called")
     
         priDev = indigo.devices[self.indigoID]
-        priDev.updateStateOnServer('motionOnOffState',"on")
+        priDev.updateStateOnServer('motionOnOffState',True)
         priDev.updateStateOnServer('motionLastUpdate',datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
         self.primary_device_state_update("motion",True)
         
@@ -516,7 +508,7 @@ class Doorbird(object):
         self.logger.debug("Doorbird.motion_off() called")
         
         priDev = indigo.devices[self.indigoID]
-        priDev.updateStateOnServer('motionOnOffState',"off")
+        priDev.updateStateOnServer('motionOnOffState',False)
         priDev.updateStateOnServer('motionLastUpdate',datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
         self.primary_device_state_update("motion",False)
         
@@ -531,7 +523,7 @@ class Doorbird(object):
         self.logger.debug("Doorbird.doorbell_event() called")
         
         priDev = indigo.devices[self.indigoID]
-        priDev.updateStateOnServer('doorbellOnOffState',"on")
+        priDev.updateStateOnServer('doorbellOnOffState',True)
         priDev.updateStateOnServer('doorbellLastUpdate',datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
         self.primary_device_state_update("doorbell",True)
     
@@ -554,7 +546,7 @@ class Doorbird(object):
         self.logger.debug("Doorbird.doorbell_off() called")
         
         priDev = indigo.devices[self.indigoID]
-        priDev.updateStateOnServer('doorbellOnOffState',"off")
+        priDev.updateStateOnServer('doorbellOnOffState',False)
         self.primary_device_state_update("doorbell",False)
         
         if self.doorbellDeviceID == None:
