@@ -4,6 +4,14 @@
 		<Name>Turn on the IR light</Name>
 		<CallbackMethod>turnOnLight</CallbackMethod>
 	</Action>
+	<Action id="startContIR" deviceFilter="self.doorbird">
+		<Name>Start Continuous IR Mode</Name>
+		<CallbackMethod>continuousIR</CallbackMethod>
+	</Action>
+	<Action id="stopContIR" deviceFilter="self.doorbird">
+		<Name>Stop Continuous IR Mode</Name>
+		<CallbackMethod>continuousIR</CallbackMethod>
+	</Action>
 	<Action id="strike1" deviceFilter="self.doorbird">
 		<Name>Energize Relay 1</Name>
 		<CallbackMethod>energizeRelay</CallbackMethod>

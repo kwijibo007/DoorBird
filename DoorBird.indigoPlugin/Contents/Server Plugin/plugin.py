@@ -35,6 +35,8 @@ class Plugin(indigo.PluginBase):
             self.logLevel = logging.INFO
         self.indigo_log_handler.setLevel(self.logLevel)
         self.logger.debug(u"logLevel = " + str(self.logLevel))
+        
+        self.isSubscribingToDeviceChanges = False
    
         
     ########################################
@@ -60,6 +62,8 @@ class Plugin(indigo.PluginBase):
                 
                 motionID = None
                 doorbellID = None
+                lock1ID = None
+                lock2ID = None
                 for xDev in indigo.devices.iter("self"):
                     if xDev.deviceTypeId == "motion":
                         if xDev.pluginProps["motionDeviceID"] == str(id):
@@ -67,8 +71,17 @@ class Plugin(indigo.PluginBase):
                     if xDev.deviceTypeId == "doorbell":
                         if xDev.pluginProps["doorbellDeviceID"] == str(id):
                             doorbellID = xDev.id
+                    if xDev.deviceTypeId == "lock":
+                        xID = xDev.pluginProps["lockDeviceID"][:-2]
+                        xRelay = xDev.pluginProps["lockDeviceID"][-2:]
+                        
+                        if xID == str(id):
+                            if xRelay == "_1":
+                                lock1ID = xDev.id
+                            if xRelay == "_2":
+                                lock2ID = xDev.id
                           
-                db = Doorbird(id, ip, user, password, motionID, doorbellID)
+                db = Doorbird(id, ip, user, password, motionID, doorbellID, lock1ID, lock2ID)
                 
                 stateBinding = dev.pluginProps["stateBinding"]            
                 db.primary_device_state_update(stateBinding,False)
@@ -76,18 +89,60 @@ class Plugin(indigo.PluginBase):
                 dev.updateStateOnServer('doorbirdOnOffState',False)
                 dev.updateStateOnServer('motionOnOffState',False)
                 dev.updateStateOnServer('doorbellOnOffState',False)
+                dev.updateStateOnServer('doorbellOnOffState',False)
+                dev.updateStateOnServer('continuousIRMode',False)
                 
             
             stateBinding = dev.pluginProps["stateBinding"]
             currentState = dev.states[stateBinding + "OnOffState"]
             
             Doorbird.instancesID[dev.id].primary_device_state_update(stateBinding,currentState)
+        elif dev.deviceTypeId == "lock":
+            dev.updateStateOnServer('onOffState',True)
+            
+            #Subscribe to indigo device changes if required
+            if dev.pluginProps["enableSensorControl"] == True:
+                if self.isSubscribingToDeviceChanges == False:
+                    indigo.devices.subscribeToChanges()
+                    self.isSubscribingToDeviceChanges == True
+                    
         else:
             #Turn all devices off at startup
             dev.updateStateOnServer('onOffState',False)
             
         return
-    
+
+
+    ########################################
+    def actionControlDevice(self, action, dev):
+        self.logger.debug(u"actionControlDevice Called")
+                
+        isSensorControl = dev.pluginProps["enableSensorControl"]
+        
+        if action.deviceAction in (indigo.kDeviceAction.Lock,indigo.kDeviceAction.TurnOff):
+            if isSensorControl == False:
+                dev.updateStateOnServer('onOffState',True)
+        elif action.deviceAction in (indigo.kDeviceAction.Unlock,indigo.kDeviceAction.TurnOff):
+            if isSensorControl == False:
+                dev.updateStateOnServer('onOffState',False)
+            
+            doorbirdID = dev.pluginProps["lockDeviceID"]
+            
+            if doorbirdID != "None":
+            
+                doorbirdID = dev.pluginProps["lockDeviceID"]
+                
+                if doorbirdID != "None":
+                    xID = doorbirdID[:-2]
+                    xRelay = doorbirdID[-1:]
+            
+                Doorbird.instancesID[int(xID)].energize_relay(int(xRelay))
+                
+                if isSensorControl == False:
+                    lockTimer = threading.Timer(int(dev.pluginProps["autoOff"]),dev.updateStateOnServer,['onOffState',True])
+                    lockTimer.start()
+            
+ 
     
     ########################################
     def __del__(self):
@@ -164,8 +219,15 @@ class Plugin(indigo.PluginBase):
             
             if valuesDict["motionPause"].isdigit() == False:
                 errorDict["motionPause"] = "Pause between alarms must be a number"
+                
+            if valuesDict["continuousMode"].isdigit() == False:
+                errorDict["continuousMode"] = "Continuous mode frequency must be a number"
             
-
+        if typeId == "lock":
+            if valuesDict["autoOff"].isdigit() == False:
+                errorDict["autoOff"] = "Auto lock must be a number"
+        
+        
         if len(errorDict) > 0:
             return (False, valuesDict, errorDict)
         else:
@@ -225,6 +287,27 @@ class Plugin(indigo.PluginBase):
                         if dev.deviceTypeId == "doorbird":
                             if Doorbird.instancesID[dev.id].doorbellDeviceID == devId:
                                 Doorbird.instancesID[dev.id].doorbellDeviceID = None
+            if typeId == "lock":
+                doorbirdID = valuesDict["lockDeviceID"]
+                
+                if doorbirdID != "None":
+                
+                    xID = doorbirdID[:-2]
+                    xRelay = doorbirdID[-2:]
+                        
+                    if xRelay == "_1":
+                        Doorbird.instancesID[int(xID)].lockDevice1ID = devId
+                    if xRelay == "_2":
+                        Doorbird.instancesID[int(xID)].lockDevice2ID = devId
+                    
+                else:
+                    #Check if this device was assigned to a Doorbird. If so unassign it.
+                    for dev in indigo.devices.iter("self"):
+                        if dev.deviceTypeId == "doorbird":
+                            if Doorbird.instancesID[dev.id].lockDevice1ID == devId:
+                                Doorbird.instancesID[dev.id].lockDevice1ID = None
+                            if Doorbird.instancesID[dev.id].lockDevice2ID == devId:
+                                Doorbird.instancesID[dev.id].lockDevice2ID = None
 
                     
     
@@ -251,19 +334,28 @@ class Plugin(indigo.PluginBase):
                 pass
                 
         
-        # Unassign motion device from Dorrbird
+        # Unassign motion device from Doorbird
         if dev.deviceTypeId == "motion":
             for dev2 in indigo.devices.iter("self"):
                 if dev2.deviceTypeId == "doorbird":
                     if Doorbird.instancesID[dev2.id].motionDeviceID == dev.id:
                         Doorbird.instancesID[dev2.id].motionDeviceID = None
                         
-        # Unassign doorbell device from Dorrbird
+        # Unassign doorbell device from Doorbird
         if dev.deviceTypeId == "doorbell":
             for dev2 in indigo.devices.iter("self"):
                 if dev2.deviceTypeId == "doorbird":
                     if Doorbird.instancesID[dev2.id].doorbellDeviceID == dev.id:
                         Doorbird.instancesID[dev2.id].doorbellDeviceID = None
+        
+        # Unassign lock device from Doorbird
+        if dev.deviceTypeId == "lock":
+            for dev2 in indigo.devices.iter("self"):
+                if dev2.deviceTypeId == "doorbird":
+                    if Doorbird.instancesID[dev2.id].lockDevice1ID == dev.id:
+                        Doorbird.instancesID[dev2.id].lockDevice1ID = None
+                    if Doorbird.instancesID[dev2.id].lockDevice2ID == dev.id:
+                        Doorbird.instancesID[dev2.id].lockDevice2ID = None
                   
     
     ########################################
@@ -294,13 +386,19 @@ class Plugin(indigo.PluginBase):
         for dev in indigo.devices.iter("self"):  
             if dev.deviceTypeId == "doorbird":
                 if typeId == "motion":
-                    # Only add Doorbirds that have no motion device assigned 
+                    # Only present Doorbirds that have no motion device assigned 
                     if Doorbird.instancesID[dev.id].motionDeviceID == None or Doorbird.instancesID[dev.id].motionDeviceID == int(devId):
                         return_list.append((str(dev.id),dev.name))
                 if typeId == "doorbell":
-                    # Only add Doorbirds that have no motion device assigned 
+                    # Only present Doorbirds that have no motion device assigned 
                     if Doorbird.instancesID[dev.id].doorbellDeviceID == None or Doorbird.instancesID[dev.id].doorbellDeviceID == int(devId):
                         return_list.append((str(dev.id),dev.name))
+                if typeId == "lock":
+                    # Only present Doorbirds that have no lock device assigned 
+                    if Doorbird.instancesID[dev.id].lockDevice1ID == None or Doorbird.instancesID[dev.id].lockDevice1ID == int(devId):
+                        return_list.append((str(dev.id) + "_1",dev.name + " - Relay 1"))
+                    if Doorbird.instancesID[dev.id].lockDevice2ID == None or Doorbird.instancesID[dev.id].lockDevice2ID == int(devId):
+                        return_list.append((str(dev.id) + "_2",dev.name + " - Relay 2"))
                  
         return return_list
 
@@ -318,6 +416,26 @@ class Plugin(indigo.PluginBase):
             relay = 2
         
         Doorbird.instancesID[dev.id].energize_relay(relay)
+        
+    def continuousIR(self, action, dev):
+        self.logger.debug("continuousIR called")
+        
+        if action.pluginTypeId == "startContIR":
+            irAction = True
+        else:
+            irAction = False
+        
+        Doorbird.instancesID[dev.id].continuous_IR(irAction)        
+        
+    def deviceUpdated(self, origDev, newDev):
+        for dev in indigo.devices.iter("self"):  
+            if dev.deviceTypeId == "lock":
+                if dev.pluginProps["enableSensorControl"] == True:
+                    if dev.pluginProps["indigoSensors"] == str(newDev.id):
+                        if newDev.states["onOffState"] == True:
+                            dev.updateStateOnServer('onOffState',False)
+                        else:
+                            dev.updateStateOnServer('onOffState',True)
         
 
  
@@ -360,7 +478,7 @@ class Doorbird(object):
     instances = dict()
     instancesID = dict()
 
-    def __init__(self, indigoID=None, ip=None, user=None, password=None, motionDeviceID=None, doorbellDeviceID=None):
+    def __init__(self, indigoID=None, ip=None, user=None, password=None, motionDeviceID=None, doorbellDeviceID=None, lockDevice1ID=None, lockDevice2ID=None):
         self.logger = logging.getLogger("Plugin")
         self.indigoID = indigoID
         self.ip = ip
@@ -375,11 +493,14 @@ class Doorbird(object):
         self.keepAlive = int((datetime.datetime.now() - datetime.timedelta(seconds = 31)).strftime('%s')) #now minus 31 seconds
         self.motionDeviceID = motionDeviceID
         self.doorbellDeviceID = doorbellDeviceID
+        self.lockDevice1ID = lockDevice1ID
+        self.lockDevice2ID = lockDevice2ID
         
         self.motionTimer = None
         self.doorbellTimer = None
         
         self.lastEvent = datetime.datetime.now()
+        self.continuousIR = False
         
         # Start monitoring if the doorbird is sending keep alive packets
         thread.start_new_thread(self.keep_alive_monitor, ())
@@ -604,7 +725,32 @@ class Doorbird(object):
         else:
             self.logger.error(indigo.devices[self.indigoID].name +  ": Relay " + str(relayID) + " energize command not sent")
     
+    def continuous_IR(self,keepOn):
+        self.logger.debug("Dorbird.continuous_IR called")
+        if keepOn == True:
+            self.logger.info(indigo.devices[self.indigoID].name +  ": Continuous IR mode enabled")
+            if self.continuousIR == False:
+                self.continuousIR = True
+                thread.start_new_thread(self.continuous_IR_worker, ())
+        else:
+            self.logger.info(indigo.devices[self.indigoID].name +  ": Continuous IR mode disabled")
+            self.continuousIR = False
+            
+        dev = indigo.devices[self.indigoID]
+        dev.updateStateOnServer('continuousIRMode',keepOn)
+        dev.updateStateOnServer('continuousIRLastUpdate',datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
     
+    
+    def continuous_IR_worker(self):
+        self.logger.debug("Dorbird.continuous_IR_worker called")
+        while self.continuousIR == True:
+            self.logger.debug(indigo.devices[self.indigoID].name +  ": Continuous IR Light command sent")
+            response = self.doorbirdPy.turn_light_on()
+            
+            dev = indigo.devices[self.indigoID]
+            time.sleep(int(dev.pluginProps["continuousMode"]))
+            
+              
     def udp_message(self, data):
   
         pw = self.password[:5]   
