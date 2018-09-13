@@ -83,6 +83,19 @@ class DoorBird(object):
         return int(code) == 1
 
     """
+    
+    Restart the Doorbird - Added by Pete.
+    
+    """
+    def restart_doorbird(self):
+    
+        url = self.__url("restart.cgi", auth=False)
+        response, content = self._http.request(url)  
+        print response["status"] 
+        return int(response["status"])
+
+
+    """
     A past image stored in the cloud.
 
     :param index: Index of the history images, where 1 is the latest 

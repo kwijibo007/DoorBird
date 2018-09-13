@@ -29,6 +29,15 @@
 			<Field id="motionPause" type="textfield" defaultValue="30" visibleBindingId="enableAdvancedDoorbird" visibleBindingValue="true">
 				<Label>Pause between alarms:</Label>
 			</Field>
+			<Field id="BlankLabel" type="label" fontColor="darkgray">
+				<Label></Label>
+			</Field>
+			<Field id="enableContinuousModeLabel" type="label" visibleBindingId="enableAdvancedDoorbird" visibleBindingValue="true" fontColor="red">
+				<Label>WARNING: Using continuous IR mode for long periods of time may shorten the life of the IR lights in your Doorbird.</Label>
+			</Field>
+			<Field type="checkbox" id="enableContinuousMode" defaultValue="false" visibleBindingId="enableAdvancedDoorbird" visibleBindingValue="true">
+				<Label>Enable Continuous IR Mode:</Label>
+			</Field>
 			<Field id="continuousMode" type="textfield" defaultValue="90" visibleBindingId="enableAdvancedDoorbird" visibleBindingValue="true">
 				<Label>Continuous mode frequency:</Label>
 			</Field>
@@ -132,9 +141,9 @@
 		<Name>Lock</Name>
 		<ConfigUI>
 		    <Field id='IsLockSubType' type='checkbox' defaultValue='true' hidden='true' />
-		    <Field id="lockDeviceID" type="menu" method="getChartList" defaultValue="Not assigned">
-				<Label>Doorbird:</Label>
-				<List class="self" filter="" method="getServerList" dynamicReload="true"/>
+			<Field id="lockDeviceID" type="menu" method="getRelayList" defaultValue="Not assigned">
+				<Label>Doorbird relay:</Label>
+				<List class="self" filter="" method="getRelayList" dynamicReload="true"/>
 			</Field>
 		    <Field id="autoOff" type="textfield" defaultValue="5" visibleBindingId="enableSensorControl" visibleBindingValue="false">
 				<Label>Auto Lock:</Label>
@@ -145,6 +154,9 @@
 			<Field id="indigoSensors" type="menu" visibleBindingId="enableSensorControl" visibleBindingValue="true">
 				<Label>Indigo Sensor:</Label>
 				<List class="indigo.devices" filter="indigo.sensor"/>
+			</Field>
+			<Field type="checkbox" id="reverseSensorControl" defaultValue="false" visibleBindingId="enableSensorControl" visibleBindingValue="true">
+				<Label>Reverse Sensor:</Label>
 			</Field>
 		</ConfigUI>
 		<States></States>

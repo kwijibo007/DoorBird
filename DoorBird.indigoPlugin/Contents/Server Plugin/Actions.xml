@@ -12,12 +12,17 @@
 		<Name>Stop Continuous IR Mode</Name>
 		<CallbackMethod>continuousIR</CallbackMethod>
 	</Action>
-	<Action id="strike1" deviceFilter="self.doorbird">
-		<Name>Energize Relay 1</Name>
+	<Action id="energizeRelay" deviceFilter="self.doorbird">
+		<Name>Energize Relay</Name>
 		<CallbackMethod>energizeRelay</CallbackMethod>
-	</Action>
-	<Action id="strike2" deviceFilter="self.doorbird">
-		<Name>Energize Relay 2</Name>
-		<CallbackMethod>energizeRelay</CallbackMethod>
+		<ConfigUI>
+			<Field id="relay" type="menu" defaultValue="">
+				<List class="self" filter="test" method="getFullRelayList" dynamicReload="true"/>
+			</Field>
+		</ConfigUI>
+	</Action>	
+	<Action id="restart" deviceFilter="self.doorbird">
+		<Name>Restart Doorbird</Name>
+		<CallbackMethod>restartDoorbird</CallbackMethod>
 	</Action>
 </Actions>
