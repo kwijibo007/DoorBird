@@ -272,7 +272,7 @@ class Plugin(indigo.PluginBase):
               
                 else:
                     self.debugLog("New Doorbird device")
-                    Dorbird(devId, ip, user, password, None, None)
+                    Doorbird(devId, ip, user, password, None, None)
                     
                 
             if typeId == "motion":
@@ -564,8 +564,6 @@ class Doorbird(object):
         self.motionDeviceID = motionDeviceID
         self.doorbellDeviceID = doorbellDeviceID
         
-        #self.lockDevice1ID = lockDevice1ID
-        #self.lockDevice2ID = lockDevice2ID
         self.lockDevices = lockDevices
         
         self.motionTimer = None
@@ -603,7 +601,7 @@ class Doorbird(object):
         return status
         
     def update_status_fields(self,printLog):
-        self.logger.debug("Dorbird.update_status_fields() called")
+        self.logger.debug("Doorbird.update_status_fields() called")
         
         try:      
             if self.check_status() == True:
@@ -811,7 +809,7 @@ class Doorbird(object):
     def energize_relay(self,relayID):
     
         if self.check_status() == True:
-            self.logger.debug("Dorbird.energize_relay called")
+            self.logger.debug("Doorbird.energize_relay called")
             try:
                 response = self.doorbirdPy.energize_relay(relayID)
                 self.logger.info(indigo.devices[self.indigoID].name +  ": Relay " + str(relayID) + " energize command sent")
@@ -821,7 +819,7 @@ class Doorbird(object):
             self.logger.error(indigo.devices[self.indigoID].name +  ": Relay " + str(relayID) + " energize command not sent")
     
     def continuous_IR(self,keepOn):
-        self.logger.debug("Dorbird.continuous_IR called")
+        self.logger.debug("Doorbird.continuous_IR called")
         if keepOn == True:
             self.logger.info(indigo.devices[self.indigoID].name +  ": Continuous IR mode enabled")
             if self.continuousIR == False:
@@ -837,7 +835,7 @@ class Doorbird(object):
     
     
     def continuous_IR_worker(self):
-        self.logger.debug("Dorbird.continuous_IR_worker called")
+        self.logger.debug("Doorbird.continuous_IR_worker called")
         while self.continuousIR == True:
             self.logger.debug(indigo.devices[self.indigoID].name +  ": Continuous IR Light command sent")
             response = self.doorbirdPy.turn_light_on()
@@ -881,9 +879,16 @@ class Doorbird(object):
                     
                     INTERCOM_ID = self.hex_convert(outputHex[0:6],"s")
                     EVENT = self.hex_convert(outputHex[6:14],"s")
-                    TIMESTAMP = self.hex_convert(outputHex[14:18],"i")                                
-                    #strTimeStamp = datetime.datetime.fromtimestamp(int(TIMESTAMP)).strftime('%Y-%m-%d %H:%M:%S')
+                    TIMESTAMP = self.hex_convert(outputHex[14:18],"i")
+                    
 
+                    self.logger.debug("------------------------------")
+                    self.logger.debug(indigo.devices[self.indigoID].name + ": Decrypted UDP packet details")
+                    self.logger.debug("    Intercom_ID: " +  str(INTERCOM_ID))
+                    self.logger.debug("    Event: " +  str(EVENT))
+                    self.logger.debug("    Timestamp: " +  str(TIMESTAMP))
+                    self.logger.debug("------------------------------")
+                                                       
                     
                     if TIMESTAMP != self.lastEvent: #Multiple duplicate UDP packets sent by Doorbird. This removes the duplicates
                         if str(EVENT).rstrip() == "motion":

@@ -26,7 +26,7 @@
 		<Label>35344:</Label>
 	</Field>
 	<Field id="portLabel2" type="label" visibleBindingId="enableAdvancedDoorbird" visibleBindingValue="true" fontSize="small">
-		<Label>*Changing port settings requires a restart of the plugin for changes to take affect</Label>
+		<Label>    *Changing port settings requires a restart of the plugin for changes to take affect</Label>
 	</Field>
 	<Field id="BlankLabel1" type="label" fontColor="darkgray">
 		<Label></Label>
