@@ -14,6 +14,8 @@ import time
 import thread
 import threading
 import re
+from pygtail import Pygtail
+import os.path
 
 
 
@@ -228,6 +230,13 @@ class Plugin(indigo.PluginBase):
             if valuesDict["motionPause"].isdigit() == False:
                 errorDict["motionPause"] = "Pause between alarms must be a number"
                 
+            if valuesDict["enableSSIRActivation"]:
+                if os.path.isfile(valuesDict["ssWebLogPath"]) == False:
+                    errorDict["ssWebLogPath"] = "Invalid web log path. Have you enabled the web log in Security Spy?"
+                    
+                if valuesDict["ssCameraNum"].isdigit() == False:
+                     errorDict["ssCameraNum"] = "Security Spy camera number must be a number. Look in Security Spy to find the camera number corresponding to this Doorbird."
+                
             if valuesDict["continuousMode"].isdigit() == False:
                 errorDict["continuousMode"] = "Continuous mode frequency must be a number"
             
@@ -269,6 +278,12 @@ class Plugin(indigo.PluginBase):
                         # Add new IP instance
                         Doorbird.instancesID[devId].ip = ip
                         Doorbird.instances[ip] = Doorbird.instancesID[devId]
+                                               
+                    # monitoring of Security Spy web logs for auto IR                        
+                    if valuesDict["enableSSIRActivation"]:
+                        Doorbird.instancesID[devId].start_ss_web_log_monitor()
+                    else:
+                        Doorbird.instancesID[devId].stop_ss_web_log_monitor()
               
                 else:
                     self.debugLog("New Doorbird device")
@@ -574,7 +589,13 @@ class Doorbird(object):
         
         # Start monitoring if the doorbird is sending keep alive packets
         thread.start_new_thread(self.keep_alive_monitor, ())
-
+        
+        self.monitorSSWeblogs = False
+        if "enableSSIRActivation" in indigo.devices[self.indigoID].pluginProps: #required to prevent error when upgrading the plugin.
+            if indigo.devices[self.indigoID].pluginProps["enableSSIRActivation"]:
+                # Start monitoring Security Spy web logs for auto IR
+                self.start_ss_web_log_monitor()
+        
     
     def update_credintials(self, usr ,pwd):
         self.logger.debug("Doorbird.update_credintials() called")
@@ -634,17 +655,22 @@ class Doorbird(object):
             return info['RELAYS']
         else:
             return False
-    
-    
-    
+        
     
     # Monitors the last keep alive packet time and sets the sensor to off if more than 30 seconds has passed    
     def keep_alive_monitor(self):
         while True:    
             try:
+            
+            
                 dev = indigo.devices[self.indigoID]
                 now = time.time()
                 diff = now - self.keepAlive
+                
+                #self.logger.debug(indigo.devices[self.indigoID].name +  " - Current time: " + str(now))
+                #self.logger.debug(indigo.devices[self.indigoID].name +  " - Keep alive: " + str(self.keepAlive))
+                #self.logger.debug(indigo.devices[self.indigoID].name +  " - Diff: " + str(diff))
+                
 
                 deviceKeepAlive = int(dev.pluginProps["keepalive"])
                 
@@ -677,6 +703,49 @@ class Doorbird(object):
             
             time.sleep(1)
     
+    def start_ss_web_log_monitor(self):
+        if self.monitorSSWeblogs == False:
+            self.monitorSSWeblogs = True
+            thread.start_new_thread(self.ss_web_log_monitor, ())
+    
+    def stop_ss_web_log_monitor(self):
+        self.monitorSSWeblogs = False
+    
+    def ss_web_log_monitor(self):
+        self.logger.debug("Doorbird.ss_web_log_monitor() called")
+        
+        #Get isDaylight variable ID
+        isDaylightId = None
+        for var in indigo.variables:
+            if var.name == "isDaylight":
+                isDaylightId = var.id
+        
+        lastTriggered = None
+        lastError = None
+        
+        self.logger.info(indigo.devices[self.indigoID].name + ": Monitoring of the Security Spy web log has started")
+        while self.monitorSSWeblogs:    
+            try:
+                if os.path.isfile(indigo.devices[self.indigoID].pluginProps["ssWebLogPath"]):
+                    if indigo.variables[isDaylightId].value == "false":
+                        for line in Pygtail(indigo.devices[self.indigoID].pluginProps["ssWebLogPath"]):
+                            if (("cameraNum=" + indigo.devices[self.indigoID].pluginProps["ssCameraNum"]) in line) and (indigo.devices[self.indigoID].states["doorbirdOnOffState"] == True):
+                                if (lastTriggered == None) or (time.time() - lastTriggered > 30):
+                                    self.logger.debug(indigo.devices[self.indigoID].name +  ": Security Spy web log criteria detected")
+                                    self.turn_light_on()
+                                    lastTriggered = time.time()
+                else:
+                    if (lastError == None) or (time.time() - lastError > 300): # only send error messages every 5 minutes so as not to spam the log
+                        lastError = time.time()
+                        self.logger.error(indigo.devices[self.indigoID].name +  ": Invalid Security Spy web log path: " + indigo.devices[self.indigoID].pluginProps["ssWebLogPath"])
+            except:
+                if (lastError == None) or (time.time() - lastError > 300): # only send error messages every 5 minutes so as not to spam the log
+                    lastError = time.time()
+                    self.logger.error(indigo.devices[self.indigoID].name +  ": Error reading Security Spy web log")
+            
+            time.sleep(.5)
+            
+        self.logger.info(indigo.devices[self.indigoID].name + ": Monitoring of the Security Spy web log has stopped")
     
     
     def motion_event(self):
@@ -908,14 +977,8 @@ class Doorbird(object):
             else:
                 self.logger.debug(indigo.devices[self.indigoID].name + ": Unknown packet identifier (" + str(IDENT) + ")")             
         else:
-            # This is a keep alive packet. Extract the time and update keepAlive variable
-            strTime = data.split(":")[2]  
-            try:
-                self.keepAlive = int(strTime)
-            except:
-                self.logger.error(indigo.devices[self.indigoID].name + ": Corrupt Keep Alive Packet")
-                          
-
+            self.keepAlive = time.time()
+            
 
     # For converting packets back to hex
     def hex_convert(self,subPacket,type): 

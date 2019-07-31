@@ -29,6 +29,15 @@
 			<Field id="motionPause" type="textfield" defaultValue="30" visibleBindingId="enableAdvancedDoorbird" visibleBindingValue="true">
 				<Label>Pause between alarms:</Label>
 			</Field>
+			<Field type="checkbox" id="enableSSIRActivation" defaultValue="false">
+				<Label>Security Spy IR activation:</Label>
+			</Field>
+			<Field id="ssWebLogPath" type="textfield" defaultValue="/Users/[USER]/SecuritySpy/web/WebLog.txt" visibleBindingId="enableAdvancedDoorbird" visibleBindingValue="true">
+				<Label>Security Spy web log path:</Label>
+			</Field>
+			<Field id="ssCameraNum" type="textfield" defaultValue="" visibleBindingId="enableAdvancedDoorbird" visibleBindingValue="true">
+				<Label>Security Spy camera number:</Label>
+			</Field>
 			<Field id="BlankLabel" type="label" fontColor="darkgray">
 				<Label></Label>
 			</Field>
