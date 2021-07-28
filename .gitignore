@@ -103,3 +103,7 @@ venv.bak/
 # mypy
 .mypy_cache/
 .DS_Store
+DoorBird.indigoPlugin/.idea/misc.xml
+DoorBird.indigoPlugin/.idea/misc.xml
+DoorBird.indigoPlugin/.idea/modules.xml
+DoorBird.indigoPlugin/.idea/misc.xml

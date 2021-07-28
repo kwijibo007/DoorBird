@@ -4,7 +4,7 @@
 		<Name>DoorBird</Name>
 		<ConfigUI>
 			<Field id="ip" type="textfield" defaultValue="0.0.0.0">
-				<Label>Doorbird IP Address:</Label>
+				<Label>Doorbird Network Address:</Label>
 			</Field>
 			<Field id="user" type="textfield">
 				<Label>Doorbird User:</Label>

@@ -7,7 +7,22 @@
 
 import logging
 import socket
-import pysodium
+
+import os
+
+try:
+    import pysodium
+except:
+    if os.path.isfile("libsodium.dylib.intel"):
+        os.rename('libsodium.dylib','libsodium.dylib.arm')
+        os.rename('libsodium.dylib.intel', 'libsodium.dylib')
+    else:
+        os.rename('libsodium.dylib', 'libsodium.dylib.intel')
+        os.rename('libsodium.dylib.arm', 'libsodium.dylib')
+
+    import pysodium
+
+
 import datetime
 import doorbirdpy
 import time
@@ -51,7 +66,6 @@ class Plugin(indigo.PluginBase):
         self.logger.debug(u"deviceStartComm Called")
         dev.stateListOrDisplayStateIdChanged()
         
-        
         # Build Doorbird objects and turn all sates to "Off"
         if dev.deviceTypeId == "doorbird":       
         
@@ -79,10 +93,14 @@ class Plugin(indigo.PluginBase):
                         
                         xList = xDev.pluginProps["lockDeviceID"].split("_")  
                         xID = xList[0]
-                        #xRelay = xList[1]
                         
                         if xID == str(id):
                             lockDeviceIDs.append(xDev.id)
+
+
+                    dProps = xDev.pluginProps
+                    dProps["address"] = ip
+                    xDev.replacePluginPropsOnServer(dProps)
                           
                 db = Doorbird(id, ip, user, password, motionID, doorbellID, lockDeviceIDs)
                 
@@ -216,11 +234,7 @@ class Plugin(indigo.PluginBase):
                 
                 if assignedID != devId:
                     name = indigo.devices[assignedID].name
-                    errorDict["ip"] = "IP address is already assigned to device: " + name
-
-            isIP=re.match(r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$",ip)
-            if not isIP:    
-                errorDict["ip"] = "Not a valid ip address"
+                    errorDict["ip"] = "Address is already assigned to device: " + name
             
             
             # Check that the keep alive value is a valid number
@@ -259,9 +273,9 @@ class Plugin(indigo.PluginBase):
         if userCancelled:
             pass
         else:
+
             if typeId == "doorbird":
-            
-                dev = indigo.devices[devId]
+
                 ip = valuesDict["ip"]
                 user = valuesDict["user"]
                 password = valuesDict["password"]
