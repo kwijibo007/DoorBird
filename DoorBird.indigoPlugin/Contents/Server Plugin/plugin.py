@@ -7,7 +7,6 @@
 
 import logging
 import socket
-
 import os
 
 try:
@@ -22,7 +21,6 @@ except:
 
     import pysodium
 
-
 import datetime
 import doorbirdpy
 import time
@@ -31,6 +29,8 @@ import threading
 import re
 from pygtail import Pygtail
 import os.path
+import requests
+import shutil
 
 
 
@@ -496,6 +496,10 @@ class Plugin(indigo.PluginBase):
         self.logger.debug("energizeRelay called")
      
         Doorbird.instancesID[dev.id].energize_relay(action.props["relay"])
+
+    def saveLocalFile(self, action, dev):
+    	self.logger.debug("saveLocalFile called")
+    	Doorbird.instancesID[dev.id].save_image_file(action.props["filename"])
         
     def continuousIR(self, action, dev):
         self.logger.debug("continuousIR called")
@@ -900,7 +904,35 @@ class Doorbird(object):
                 self.logger.error(indigo.devices[self.indigoID].name +  ": Unable energize relay " + str(relayID))
         else:
             self.logger.error(indigo.devices[self.indigoID].name +  ": Relay " + str(relayID) + " energize command not sent")
-    
+
+    def save_image_file(self, filePath):
+        self.logger.debug("Doorbird.save_local_file to %s called", filePath)
+        imageUrl = ""
+
+        if self.check_status() == True:
+            try:
+                imageUrl = self.doorbirdPy.live_image_url
+                self.logger.debug("Got URL: %s", imageUrl)
+            except:
+                self.logger.error(indigo.devices[self.indigoID].name + ": Unable to get image url")
+                return True
+
+            self.logger.debug(u'downloading image: %s', imageUrl)
+            self.logger.info(indigo.devices[self.indigoID].name + ": Save image to file " + filePath)
+
+            try:
+                r = requests.get(imageUrl, stream=True)
+                r.raw.decode_content = True
+                with open(filePath, 'wb') as f:
+                    shutil.copyfileobj(r.raw, f)
+            except:
+                self.logger.error(indigo.devices[self.indigoID].name + ": Unable to download image")
+
+        else:
+            self.logger.error(indigo.devices[self.indigoID].name + ": Get Live Image URL command not sent")
+
+        return True
+
     def continuous_IR(self,keepOn):
         self.logger.debug("Doorbird.continuous_IR called")
         if keepOn == True:

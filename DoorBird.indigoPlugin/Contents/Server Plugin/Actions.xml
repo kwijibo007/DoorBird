@@ -25,4 +25,16 @@
 		<Name>Restart Doorbird</Name>
 		<CallbackMethod>restartDoorbird</CallbackMethod>
 	</Action>
+	<Action id="save_image_file" deviceFilter="self.doorbird">
+		<Name>Save Image to File</Name>
+		<CallbackMethod>saveLocalFile</CallbackMethod>
+		<ConfigUI>
+			<Field id="filename" type="textfield">
+				<Label>Filename:</Label>
+		  	</Field>
+		  <Field id="filenameHelp" type="label" fontSize="mini" alignWithControl="true">
+			  <Label>Full path to the local file (.jpg). Supports Python's strftime() formatting</Label>
+		  </Field>
+		</ConfigUI>
+	</Action>
 </Actions>
