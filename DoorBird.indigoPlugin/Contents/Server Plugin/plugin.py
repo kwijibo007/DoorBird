@@ -607,6 +607,7 @@ class Doorbird(object):
         self.ip = ip
         self.user = None
         self.password = None
+        self.notification_encryption_key = None  # Store the encryption key
         self.doorbirdPy = None
         self.update_credintials(user, password)
 
@@ -625,6 +626,9 @@ class Doorbird(object):
 
         self.lastEvent = datetime.datetime.now()
         self.continuousIR = False
+
+        # Retrieve the NOTIFICATION_ENCRYPTION_KEY
+        self.notification_encryption_key = self.get_notification_encryption_key()
 
         # Start monitoring if the doorbird is sending keep alive packets
         _thread.start_new_thread(self.keep_alive_monitor, ())
@@ -983,7 +987,13 @@ class Doorbird(object):
 
     def udp_message(self, data):
 
-        pw = self.password[:5]
+        # Ensure the encryption key is available
+        if not self.notification_encryption_key:
+            self.logger.error("No NOTIFICATION_ENCRYPTION_KEY available. Cannot decrypt UDP packet.")
+            return
+
+        # Use the first 32 bytes of the NOTIFICATION_ENCRYPTION_KEY
+        key = self.notification_encryption_key[:32].encode("utf-8")
 
         if ":" + self.user[:-4] + ":" not in data.decode("latin1"):
             packet = list()
@@ -995,26 +1005,22 @@ class Doorbird(object):
             # 14593470 is the first 3 bytes (0xDE 0xAD 0xBE) which identifies this type of packet
             if IDENT == 14593470:
 
-                OPSLIMIT = self.hex_convert(packet[4:8], "i")
-                MEMLIMIT = self.hex_convert(packet[8:12], "i")
-                SALT = self.hex_convert(packet[12:28], "s")
-                NONCE = self.hex_convert(packet[28:36], "s")
-                CIPHERTEXT = self.hex_convert(packet[36:70], "s")
-
-                key = pysodium.crypto_pwhash(pysodium.crypto_auth_KEYBYTES, pw, SALT, OPSLIMIT, MEMLIMIT,
-                                             pysodium.crypto_pwhash_ALG_ARGON2I13)
+                VERSION = packet[3]
+                NONCE = self.hex_convert(packet[4:12], "s")
+                CIPHERTEXT = self.hex_convert(packet[12:], "s")
 
                 try:
-
-                    output = pysodium.crypto_aead_chacha20poly1305_decrypt(CIPHERTEXT, None, NONCE, key)
-
+                    # Decrypt the packet using ChaCha20-Poly1305
+                    output = pysodium.crypto_aead_chacha20poly1305_decrypt(
+                        CIPHERTEXT, None, NONCE, key
+                    )
                     outputHex = list()
 
                     for i in output:
                         outputHex.append(hex(i))
 
                     INTERCOM_ID = self.hex_convert(outputHex[0:6], "s")
-                    EVENT = (self.hex_convert(outputHex[6:14], "s")).decode("utf-8")
+                    EVENT = (self.hex_convert(outputHex[6:14], "s")).decode("utf-8").strip()
                     TIMESTAMP = self.hex_convert(outputHex[14:18], "i")
 
                     self.logger.debug("------------------------------")
@@ -1024,27 +1030,50 @@ class Doorbird(object):
                     self.logger.debug("    Timestamp: " + str(TIMESTAMP))
                     self.logger.debug("------------------------------")
 
-                    if TIMESTAMP != self.lastEvent:  # Multiple duplicate UDP packets sent by Doorbird. This removes the duplicates
-                        if str(EVENT).rstrip() == "motion":
-                            self.logger.debug("motion!!!!!!")
+                    # Validate INTERCOM_ID
+                    if INTERCOM_ID.decode("utf-8") != self.user[:6]:
+                        self.logger.warning("INTERCOM_ID does not match. Skipping packet.")
+                        return
+
+                    if TIMESTAMP != self.lastEvent:  # Remove duplicate packets
+                        if EVENT == "motion":
                             self.motion_event()
-                        elif str(EVENT).rstrip() == "1":
+                        elif EVENT == "1":
                             self.doorbell_event()
                         else:
                             self.logger.debug(indigo.devices[self.indigoID].name + ": Unknown event (" + EVENT + ")")
 
                         self.lastEvent = TIMESTAMP
-                except:
-                    pass  # Just keep going as multiple packets are sent with different passwords. Some will always fail here as wrong password
-
-            # 11189196 is the first 3 bytes (0xAA 0xBB 0xCC) which occurs when an IP Chime is connected to the Doorbird
-            elif IDENT == 11189196:
-                pass  # For now do nothing. Maybe useful later when we work out what to do with this type of packet?
+                except Exception as e:
+                    #self.logger.error(f"Decryption failed: {e}")
+                    pass  # Continue processing other packets
             else:
                 self.logger.debug(
-                    indigo.devices[self.indigoID].name + ": Unknown packet identifier (" + str(IDENT) + ")")
+                    indigo.devices[self.indigoID].name + ": Unknown packet identifier (" + str(IDENT) + ")"
+                )
         else:
             self.keepAlive = time.time()
+    
+    def get_notification_encryption_key(self):
+        """
+        Retrieve the NOTIFICATION_ENCRYPTION_KEY from the DoorBird API.
+        """
+        self.logger.debug("Doorbird.get_notification_encryption_key called")
+        url = f"http://{self.ip}/bha-api/getsession.cgi"
+        try:
+            response = requests.get(url, auth=(self.user, self.password))
+            response.raise_for_status()
+            data = response.json()
+            if "BHA" in data and "NOTIFICATION_ENCRYPTION_KEY" in data["BHA"]:
+                key = data["BHA"]["NOTIFICATION_ENCRYPTION_KEY"]
+                #self.logger.info(f"Retrieved NOTIFICATION_ENCRYPTION_KEY: {key}")
+                return key
+            else:
+                self.logger.error("Failed to retrieve NOTIFICATION_ENCRYPTION_KEY: Invalid response format")
+                return None
+        except requests.exceptions.RequestException as e:
+            self.logger.error(f"Error retrieving NOTIFICATION_ENCRYPTION_KEY: {e}")
+            return None
 
     # For converting packets back to hex
     def hex_convert(self, subPacket, type):
